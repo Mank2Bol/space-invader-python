@@ -40,8 +40,8 @@ class Jeu(tk.Tk):
         self.score_id = None
         self.texte_score = tk.StringVar() #var tk string du score du joueur maj avec fonction
         
-        self.vies = None
-        self.vies_id =[]
+        #self.vies = None vieux
+        #self.vies_id =[] vieux
         
 
         self.niveau = 1
@@ -49,7 +49,7 @@ class Jeu(tk.Tk):
         self.unite = 8 #unite de pixel arbitraire comme pas de deplacement du vaisseau
         
         self.unite_image = 32
-        self.aliens = None
+        self.liste_aliens = []
         self.vit_aliens = None # temps en ms entre chaque mouvement
         self.dirx = 10 # pas de deplacement, positif donc vers la droite (initialement)
         self.diry = 16 # pas de deplacement vers le bas
@@ -67,9 +67,9 @@ class Jeu(tk.Tk):
         self.vaisseau = None
         self.tir_autorise = True
         self.actions_joueur = None
-        self.tick = 1/50 # 25 ticks par seconde
+        self.tick = 1/50 # 50 ticks par seconde
         
-        self.murs = []
+        self.liste_murs = []
         
         
         self.ini_widgets()
@@ -178,36 +178,36 @@ class Jeu(tk.Tk):
         
 
     def deplacement_aliens(self):
-        x_max = 0
+        x_max = 0 #initialisation le pire x_max
         x_min = self.largeur
         y_max = 4*35
-        k=len(self.aliens)-1
+        k=len(self.liste_aliens)-1
         while k>=0:
-            alien = self.aliens[k]
+            alien = self.liste_aliens[k]
             if alien.vivant:
                 x_max = max(x_max, alien.x + alien.l + 8)
                 x_min = min(x_min, alien.x)
                 y_max = max( y_max, alien.y )
             else:#profitons en pour faire du menage
-                del self.aliens[k] #suppr l objet de la liste
-                del alien # que fait cette instruction ? l objectif etant de supprimer le lien vers l instance
+                del self.liste_aliens[k] #suppr l objet de la liste
+                #del alien # que fait cette instruction ? l objectif etant de supprimer le lien vers l instance
             k -= 1
         
         coef = 1/10 #coed d adoucissement de l exp
         diff = exp(-coef*(1-self.niveau)) #difficultee du niveau
         
-        self.vit_aliens = int( ( 975/54 * len(self.aliens) + 25-975/54  ) * diff) #vitesse fonction lineaire du nombre d aliens pour un niveau donne
+        self.vit_aliens = int( ( 975/54 * len(self.liste_aliens) + 25-975/54  ) * diff) #vitesse fonction lineaire du nombre d aliens pour un niveau donne
 
         if x_max >= self.largeur or x_min <= 0:
             self.dirx = -self.dirx #changement de sens de deplacement
-            for alien in self.aliens:
+            for alien in self.liste_aliens:
                 alien.y = alien.y + self.diry
                 self.can.coords(alien.id, alien.x, alien.y)
 
         if y_max >= self.hauteur - self.unite_image:
             self.defaite()
         
-        for alien in self.aliens:
+        for alien in self.liste_aliens:
             if alien.vivant:
                 alien.x = alien.x + self.dirx
                 self.can.coords(alien.id, alien.x, alien.y)
@@ -215,14 +215,31 @@ class Jeu(tk.Tk):
         self.after(self.vit_aliens, self.deplacement_aliens)
 
     def creation_aliens(self): # groupe d alien classique de 5 par 11, renvoie une liste d'objets Alien
-        aliens = []
         for i in range(5):
             for j in range(11):
                 x = j * 40 + self.largeur//4
                 y = i * 35
-                aliens.append( Entite(self, x, y, self.unite_image, self.images['alien'],False ))
-        return aliens
+                self.liste_aliens.append( Entite(self, x, y, self.unite_image, self.images['alien'],False ))
     
+    
+    def creation_murs(self):
+        for mur in self.liste_murs:
+            mur.nettoyage()
+        t = 16
+        for i in range(4):
+            x = self.largeur/8*(2*i+1)
+            y = self.hauteur - self.unite_image - 8 #hauteur - taille mur - 8px
+            self.liste_murs.append(Mur(self, x-2*t, y-3*t, t, t))
+            self.liste_murs.append(Mur(self, x-1*t, y-3*t, t, t))
+            self.liste_murs.append(Mur(self, x-0*t, y-3*t, t, t))
+            self.liste_murs.append(Mur(self, x+1*t, y-3*t, t, t))
+            self.liste_murs.append(Mur(self, x-2*t, y-2*t, t, t))
+            self.liste_murs.append(Mur(self, x-1*t, y-2*t, t, t))
+            self.liste_murs.append(Mur(self, x-0*t, y-2*t, t, t))
+            self.liste_murs.append(Mur(self, x+1*t, y-2*t, t, t))
+            self.liste_murs.append(Mur(self, x-2*t, y-1*t, t, t))
+            self.liste_murs.append(Mur(self, x+1*t, y-1*t, t, t))
+
     @staticmethod
     def collision(obj1,obj2):#les rectangles se chevauchent ils ?
         return not( (obj2.x > obj1.x + obj1.l) or (obj2.x + obj2.l < obj1.x) or (obj2.y > obj1.y + obj1.h) or (obj2.y + obj2.h < obj1.y) )
@@ -259,8 +276,8 @@ class Jeu(tk.Tk):
             self.queue_tir_joueur.append(Tir(self, x, y, l, h, joueur_tireur))
         
     def tir_aliens(self):
-        n = len(self.aliens)
-        alien = self.aliens[randint(0,n-1)]
+        n = len(self.liste_aliens)
+        alien = self.liste_aliens[randint(0,n-1)]
         l = self.largeur_tir*2
         h = self.hauteur_tir
         x = alien.x + self.unite_image//2 - l//2
@@ -287,6 +304,8 @@ class Jeu(tk.Tk):
     def chargement_niveau(self):
         nom = 'fond' + str( (self.niveau-1)%3+1 ) #trois images de fond seulement pour le moment
         self.can.create_image(0, 0, anchor=tk.NW, image=self.images[nom]) #image de fond du niveau
+
+        self.creation_murs()
         
         
         
@@ -299,7 +318,7 @@ class Jeu(tk.Tk):
         
         self.vaisseau = Entite(self, self.largeur//2, self.hauteur-self.unite_image, self.unite_image, self.images['vaisseau'],True)
 
-        self.aliens = self.creation_aliens()
+        self.creation_aliens()
 
 
 
@@ -366,11 +385,11 @@ class Entite():
             self.vivant = False
             self.jeu.can.delete(self.id)
             self.jeu.panneau.score_actualisation(10)
-            if len(self.jeu.aliens) == 0:
+            if len(self.jeu.liste_aliens) == 0:
                 jeu.niveau_suivant()
         self.jeu.after(110, self.jeu.can.delete, id_explosion)
         
-class Murs():
+class Mur():
     def __init__(self,jeu,x,y,largeur,hauteur):
         self.jeu = jeu
         self.x = x
@@ -386,11 +405,16 @@ class Murs():
     def destruction(self):
         self.jeu.can.delete(self.id)
         if self.vies > 0:
-            self.jeu.vies -= 1
             photoimage = self.jeu.images['mur'+str(self.vies)]
+            self.vies -= 1
             self.id = jeu.can.create_image(self.x, self.y, image=photoimage, anchor=tk.NW)
         else:
             self.vivant = False
+    
+    def nettoyage(self):
+        self.vies = 0
+        self.destruction()
+
 
 
 
@@ -407,12 +431,11 @@ class Tir():
             #self.jeu.unbind('<space>') #un seul tir à l ecran pour le joueur
             self.jeu.tir_autorise = False
             self.dir = -1 #tir vers le haut, y decroissant
-            self.cibles = self.jeu.aliens
+            self.cibles = self.jeu.liste_aliens
         else: #si les aliens tirent, le vaisseau est la cible
             self.dir = 1
             self.cibles = [self.jeu.vaisseau]
         
-        #self.cibles.append(self.jeu.murs)
         
         #on créé l image sur le canvas qui renvoie l'identifiant
         # attention coin superieur gauche pour les coos (North West)
@@ -432,7 +455,8 @@ class Tir():
         if self.y > self.jeu.largeur+100 or self.y < 0: 
             self.destruction()
         else:
-            for cible in self.cibles:
+            cibles = self.cibles + self.jeu.liste_murs
+            for cible in cibles:
                 if cible.vivant and self.jeu.collision(cible, self):
                     cible.destruction()
                     self.destruction()
@@ -476,7 +500,7 @@ class ActionsJoueur():
         print('THREAD TUE')
 
 if __name__ == "__main__":
-    jeu = Jeu()    
+    jeu = Jeu()
     jeu.mainloop()
     jeu.actions_joueur.stop()
     jeu.destroy()
