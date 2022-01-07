@@ -36,7 +36,7 @@ class Jeu(tk.Tk):
                        'fond3': tk.PhotoImage(file='fond3.gif')
                        }
 
-        self.score = 0 #score du joueur
+        self.score = None #score du joueur
         self.score_id = None
         self.texte_score = tk.StringVar() #var tk string du score du joueur maj avec fonction
         
@@ -50,6 +50,7 @@ class Jeu(tk.Tk):
         
         self.unite_image = 32
         self.liste_aliens = []
+        self.nombre_aliens = 0
         self.vit_aliens = None # temps en ms entre chaque mouvement
         self.dirx = 10 # pas de deplacement, positif donc vers la droite (initialement)
         self.diry = 16 # pas de deplacement vers le bas
@@ -73,6 +74,8 @@ class Jeu(tk.Tk):
         
         
         self.ini_widgets()
+
+        self.initialisation_jeu()
         
 
         
@@ -91,7 +94,7 @@ class Jeu(tk.Tk):
         self.config(menu = menu_barre)
         
         menu_jeu = tk.Menu(menu_barre, tearoff = 0)
-        menu_jeu.add_command(label ='Nouvelle partie', command = self.commencer)
+        menu_jeu.add_command(label ='Nouvelle partie', command = self.nouvelle_partie)
         menu_jeu.add_command(label ='Meilleurs scores', command = self.afficher_scores)
         menu_jeu.add_separator()
         menu_jeu.add_command(label='Quitter', command=self.quit)
@@ -215,6 +218,7 @@ class Jeu(tk.Tk):
         self.after(self.vit_aliens, self.deplacement_aliens)
 
     def creation_aliens(self): # groupe d alien classique de 5 par 11, renvoie une liste d'objets Alien
+        self.nombre_aliens = 5*11
         for i in range(5):
             for j in range(11):
                 x = j * 40 + self.largeur//4
@@ -277,13 +281,14 @@ class Jeu(tk.Tk):
         
     def tir_aliens(self):
         n = len(self.liste_aliens)
-        alien = self.liste_aliens[randint(0,n-1)]
-        l = self.largeur_tir*2
-        h = self.hauteur_tir
-        x = alien.x + self.unite_image//2 - l//2
-        y = alien.y + self.unite_image
-        joueur_tireur = False #les aliens ne sont pas cible
-        self.queue_tir_aliens.append(Tir(self, x, y, l, h, joueur_tireur))
+        if n:
+            alien = self.liste_aliens[randint(0,n-1)]
+            l = self.largeur_tir*2
+            h = self.hauteur_tir
+            x = alien.x + self.unite_image//2 - l//2
+            y = alien.y + self.unite_image
+            joueur_tireur = False #les aliens ne sont pas cible
+            self.queue_tir_aliens.append(Tir(self, x, y, l, h, joueur_tireur))
         self.after(self.periode_tirs, self.tir_aliens)
         
     def nettoyage_tir(self,joueur_tireur):
@@ -294,45 +299,37 @@ class Jeu(tk.Tk):
         #CONSIGNES : l objet tir doit etre supr quand il arrive en haut, attention, on ne suppr pas une instance, on suppr seulement toutes les var qui redirigent  vers l instance, et apres le "garbage collector" les suppr (quand il en a envie)
         
     def defaite(self):
-        #self.unbind('<space>')
         self.tir_autorise = False
+
         self.can.create_image(self.largeur//2, self.hauteur//2, anchor=tk.CENTER, image=self.images['defaite'])
-        
-    def niveau_suivant():
-        return
+
         
     def chargement_niveau(self):
         nom = 'fond' + str( (self.niveau-1)%3+1 ) #trois images de fond seulement pour le moment
         self.can.create_image(0, 0, anchor=tk.NW, image=self.images[nom]) #image de fond du niveau
 
         self.creation_murs()
-        
-        
-        
-
-    def commencer(self):
-        
-        self.panneau = Panneau(self)
-        
-        self.chargement_niveau()
-        
-        self.vaisseau = Entite(self, self.largeur//2, self.hauteur-self.unite_image, self.unite_image, self.images['vaisseau'],True)
 
         self.creation_aliens()
-
-
+        
+    def initialisation_jeu(self):
+        self.panneau = Panneau(self)
+        
+        self.nouvelle_partie() #quentin veut attente appui touche pour lancer
 
         self.deplacement_aliens()
         self.tir_aliens()
-        
+
         self.actions_joueur = ActionsJoueur(self) #thread avec boucle alternative
 
+
+    def nouvelle_partie(self):
+        self.chargement_niveau()
         
-        
-        #CHANGEMENT DE METHODE AVEC DU MULTITHREAD
-        # self.bind('<Left>', self.deplacement_joueur)
-        # self.bind('<Right>', self.deplacement_joueur)
-        # self.bind('<space>', self.tir_joueur)
+        self.score = 0
+
+        self.vaisseau = Entite(self, self.largeur//2, self.hauteur-self.unite_image, self.unite_image, self.images['vaisseau'],True)
+
 
 
 class Panneau():
@@ -381,12 +378,13 @@ class Entite():
             self.vivant = self.jeu.panneau.malade()
             if not self.vivant:
                 self.jeu.can.delete(self.id)
-        else:
+        else: #si c est un alien 
             self.vivant = False
+            self.jeu.nombre_aliens-=1
             self.jeu.can.delete(self.id)
             self.jeu.panneau.score_actualisation(10)
-            if len(self.jeu.liste_aliens) == 0:
-                jeu.niveau_suivant()
+            if self.jeu.nombre_aliens == 0:
+                self.jeu.chargement_niveau()
         self.jeu.after(110, self.jeu.can.delete, id_explosion)
         
 class Mur():
@@ -494,6 +492,10 @@ class ActionsJoueur():
             
             if kb.is_pressed(' '):
                 self.jeu.tir_joueur()
+            
+            if kb.is_pressed('t'):
+                self.jeu.vit_tir = 3
+
                 
     def stop(self):
         self.actif = False
