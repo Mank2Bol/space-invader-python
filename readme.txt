@@ -14,7 +14,7 @@ hop
 OOP questions https://stackoverflow.com/questions/1078838/oop-choosing-objects
 
 5x11
-chaque nvlle vague : aliens se deplacent plus vite et legerement plus bas
+
 
 
 
@@ -22,10 +22,13 @@ https://jeux.developpez.com/tutoriels/theorie-des-collisions/
 https://jeux.developpez.com/tutoriels/theorie-des-collisions/formes-2d-simples/
 
 
-fusionner classes tir joueur et alien. c'est fait
-
 
 https://www.andoverpatio.co.uk/21/space-invaders/
 
 
 Affichage Press start/video intro
+
+
+Faire des classe filles, héritage. (ex : entitee, alien, vaisseau)
+
+NE PAS OUBLIER FILE PILE

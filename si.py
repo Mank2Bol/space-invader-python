@@ -3,7 +3,7 @@ from random import randint
 import keyboard.keyboard as kb
 import threading as th
 from math import exp
-from time import sleep
+from time import sleep, time
 import csv
 
 
@@ -23,6 +23,7 @@ class Jeu(tk.Tk):
         self.title("Gogo space Invaders")
         
         self.images = {'alien' : tk.PhotoImage(file='alien.gif'),
+                       'alien2' : tk.PhotoImage(file='alien2.gif'),
                        'vaisseau' : tk.PhotoImage(file='vaisseau.gif'),
                        'defaite' : tk.PhotoImage(file='defaite.gif'),
                        'coeur' : tk.PhotoImage(file='coeur.gif'),
@@ -50,8 +51,10 @@ class Jeu(tk.Tk):
         
         self.unite_image = 32
         self.liste_aliens = []
+        self.alien2 = []
         self.nombre_aliens = 0
         self.vit_aliens = None # temps en ms entre chaque mouvement
+        self.vit_alien2 = 90
         self.dirx = 10 # pas de deplacement, positif donc vers la droite (initialement)
         self.diry = 16 # pas de deplacement vers le bas
         self.avance = 0 #avancee des aliens
@@ -178,9 +181,35 @@ class Jeu(tk.Tk):
     
     def enregistrer_score(self):
         return
+    
+    def incrementation_score(self, points):
+        self.score += points
+        self.panneau.actualisation_affichage_score()
+    
+    def chargement_alien2(self,temps):
+        if time() > temps + 5:
+            photoimage = self.images['alien2']
+            y = 0
+            x = self.largeur
+            self.alien2 = [Alien2(self,x,y,self.unite_image,photoimage)]
+            self.deplacement_alien2()
+        else:
+            self.after(3000, self.chargement_alien2, temps)
+
+    def deplacement_alien2(self):
+        alien = self.alien2[0]
+        if alien.vivant:
+            if alien.x < - self.unite_image:
+                alien.vivant = False
+            alien.x = alien.x - 10
+            self.can.coords(alien.id, alien.x, alien.y)
+            self.after(self.vit_alien2, self.deplacement_alien2)
+        else:
+            self.chargement_alien2(time())
         
 
     def deplacement_aliens(self):
+        
         x_max = 0 #initialisation le pire x_max
         x_min = self.largeur
         y_max = 4*35
@@ -204,7 +233,7 @@ class Jeu(tk.Tk):
         if x_max >= self.largeur or x_min <= 0:
             self.dirx = -self.dirx #changement de sens de deplacement
             for alien in self.liste_aliens:
-                alien.y = alien.y + self.diry
+                alien.y = alien.y + self.diry #deplacement vers le bas
                 self.can.coords(alien.id, alien.x, alien.y)
 
         if y_max >= self.hauteur - self.unite_image:
@@ -218,12 +247,13 @@ class Jeu(tk.Tk):
         self.after(self.vit_aliens, self.deplacement_aliens)
 
     def creation_aliens(self): # groupe d alien classique de 5 par 11, renvoie une liste d'objets Alien
+
         self.nombre_aliens = 5*11
         for i in range(5):
             for j in range(11):
                 x = j * 40 + self.largeur//4
-                y = i * 35
-                self.liste_aliens.append( Entite(self, x, y, self.unite_image, self.images['alien'],False ))
+                y = i * 35 + self.unite_image
+                self.liste_aliens.append( Alien(self, x, y, self.unite_image, self.images['alien'] ))
     
     
     def creation_murs(self):
@@ -308,14 +338,18 @@ class Jeu(tk.Tk):
         nom = 'fond' + str( (self.niveau-1)%3+1 ) #trois images de fond seulement pour le moment
         self.can.create_image(0, 0, anchor=tk.NW, image=self.images[nom]) #image de fond du niveau
 
-        self.creation_murs()
+        self.creation_murs() #supprime les anciens
 
-        self.creation_aliens()
+        self.creation_aliens() #ne supprime pas les anciens
+
+        self.chargement_alien2(time())
+
+        
         
     def initialisation_jeu(self):
         self.panneau = Panneau(self)
         
-        self.nouvelle_partie() #quentin veut attente appui touche pour lancer
+        self.nouvelle_partie()
 
         self.deplacement_aliens()
         self.tir_aliens()
@@ -324,11 +358,17 @@ class Jeu(tk.Tk):
 
 
     def nouvelle_partie(self):
+        self.score = 0
+        for alien in self.liste_aliens:
+            alien.destruction()
+        #for mur in self.liste_murs: deja fait ?
+        #    mur.nettoyage()
+
+
         self.chargement_niveau()
         
-        self.score = 0
-
-        self.vaisseau = Entite(self, self.largeur//2, self.hauteur-self.unite_image, self.unite_image, self.images['vaisseau'],True)
+        
+        self.vaisseau = Vaisseau(self, self.largeur//2, self.hauteur-self.unite_image, self.unite_image)
 
 
 
@@ -341,51 +381,88 @@ class Panneau():
         self.niveau_id = self.jeu.pan.create_text(self.jeu.largeur//2, self.jeu.hauteur_pan/2, fill='white', font=('system',20), text='Niveau 1')
     
     def malade(self):
-        self.vies -=1
+        self.vies -= 1
         self.jeu.pan.delete(self.vies_id[self.vies])
         if self.vies == 0:
             self.jeu.defaite()
             return False #mort
         return True #vivant
     
-    def score_actualisation(self, points):
-        self.jeu.score += points
+    def actualisation_affichage_score(self):
         score_texte = 'Score : ' + str(self.jeu.score) + ' '
         self.jeu.pan.itemconfigure(self.score_id, text=score_texte)
     
-    def niveau_actualisation(self):
+    def actualisation_affichage_niveau(self):
         texte = 'Niveau : ' + str(self.jeu.niveau) + ' '
         self.jeu.pan.itemconfigure(self.niveau_id, text=texte) 
 
 
-class Entite():
-    def __init__(self,jeu,x,y,taille,photoimage,vaisseau):
+class Vaisseau():
+    def __init__(self,jeu,x,y,taille):
         self.jeu = jeu
         self.x = x
         self.y = y
         self.l = taille
         self.h = taille
         self.vivant = True
-        self.vaisseau = vaisseau
+        
+        #on créé l image sur le canvas qui renvoie l'identifiant
+        # attention coin superieur gauche pour les coos (North West)
+        photoimage = self.jeu.images['vaisseau']
+        self.id = jeu.can.create_image(x, y, image=photoimage, anchor=tk.NW)
+    
+    def destruction(self):
+        id_explosion = jeu.can.create_image(self.x, self.y, image=self.jeu.images['explosion'], anchor=tk.NW)
+        self.vivant = self.jeu.panneau.malade()
+        if not self.vivant:
+            self.jeu.can.delete(self.id)
+        self.jeu.after(110, self.jeu.can.delete, id_explosion)
+
+
+class Alien2():
+    def __init__(self,jeu,x,y,taille,photoimage):
+        self.jeu = jeu
+        self.x = x
+        self.y = y
+        self.l = taille
+        self.h = taille
+        self.vivant = True
+        
+        self.id = jeu.can.create_image(x, y, image=photoimage, anchor=tk.NW)
+    
+    def destruction(self):
+        if self.vivant:
+            id_explosion = self.jeu.can.create_image(self.x, self.y, image=self.jeu.images['explosion'], anchor=tk.NW)
+            self.vivant = False
+            self.jeu.can.delete(self.id)
+            self.jeu.incrementation_score(150)
+            self.jeu.after(110, self.jeu.can.delete, id_explosion)
+        
+
+class Alien():
+    def __init__(self,jeu,x,y,taille,photoimage):
+        self.jeu = jeu
+        self.x = x
+        self.y = y
+        self.l = taille
+        self.h = taille
+        self.vivant = True
         
         #on créé l image sur le canvas qui renvoie l'identifiant
         # attention coin superieur gauche pour les coos (North West)
         self.id = jeu.can.create_image(x, y, image=photoimage, anchor=tk.NW)
     
     def destruction(self):
-        id_explosion = jeu.can.create_image(self.x, self.y, image=self.jeu.images['explosion'], anchor=tk.NW)
-        if self.vaisseau: #si l objet est le vaisseau du joueur
-            self.vivant = self.jeu.panneau.malade()
-            if not self.vivant:
-                self.jeu.can.delete(self.id)
-        else: #si c est un alien 
+        if self.vivant:
+            id_explosion = self.jeu.can.create_image(self.x, self.y, image=self.jeu.images['explosion'], anchor=tk.NW)
             self.vivant = False
             self.jeu.nombre_aliens-=1
             self.jeu.can.delete(self.id)
-            self.jeu.panneau.score_actualisation(10)
+            self.jeu.incrementation_score(10)
             if self.jeu.nombre_aliens == 0:
                 self.jeu.chargement_niveau()
-        self.jeu.after(110, self.jeu.can.delete, id_explosion)
+                self.jeu.liste_aliens = []
+            self.jeu.after(110, self.jeu.can.delete, id_explosion)
         
 class Mur():
     def __init__(self,jeu,x,y,largeur,hauteur):
@@ -402,9 +479,10 @@ class Mur():
     
     def destruction(self):
         self.jeu.can.delete(self.id)
+        self.vies -= 1
         if self.vies > 0:
             photoimage = self.jeu.images['mur'+str(self.vies)]
-            self.vies -= 1
+            
             self.id = jeu.can.create_image(self.x, self.y, image=photoimage, anchor=tk.NW)
         else:
             self.vivant = False
@@ -429,7 +507,7 @@ class Tir():
             #self.jeu.unbind('<space>') #un seul tir à l ecran pour le joueur
             self.jeu.tir_autorise = False
             self.dir = -1 #tir vers le haut, y decroissant
-            self.cibles = self.jeu.liste_aliens
+            self.cibles = self.jeu.liste_aliens + self.jeu.alien2
         else: #si les aliens tirent, le vaisseau est la cible
             self.dir = 1
             self.cibles = [self.jeu.vaisseau]
