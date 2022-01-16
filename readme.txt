@@ -1,3 +1,7 @@
+règles du jeu et les spécificités de votre
+implémentation, l’adresse de votre répertoire GIT, et où se trouvent les implémentations des structures
+de données demandées
+
 		plein ecran ? windows + linux
 				#Get the current screen width and height
 				screen_width = self.winfo_screenwidth()
@@ -32,3 +36,8 @@ Affichage Press start/video intro
 Faire des classe filles, héritage. (ex : entitee, alien, vaisseau)
 
 NE PAS OUBLIER FILE PILE
+
++options
++about
+
+stop bouvle deplacement alien si defaite

@@ -2,8 +2,9 @@ import tkinter as tk
 from random import randint
 import keyboard.keyboard as kb
 import threading as th
-from math import exp
+from math import exp,log
 from time import sleep, time
+from datetime import date
 import csv
 
 
@@ -11,17 +12,12 @@ class Jeu(tk.Tk):
     def __init__(self):
         tk.Tk.__init__(self)
         self.iconbitmap('icon.ico')
-        
-        
-        
         self.ecran_l = self.winfo_screenwidth()
         self.ecran_h = self.winfo_screenheight()
         self.hauteur_pan = 32+2*8
-        self.hauteur = 480
+        self.hauteur = 480 #dimensions de la fenetre
         self.largeur = 830
-        
         self.title("Gogo space Invaders")
-        
         self.images = {'alien' : tk.PhotoImage(file='alien.gif'),
                        'alien2' : tk.PhotoImage(file='alien2.gif'),
                        'vaisseau' : tk.PhotoImage(file='vaisseau.gif'),
@@ -37,47 +33,49 @@ class Jeu(tk.Tk):
                        'fond3': tk.PhotoImage(file='fond3.gif')
                        }
 
-        self.score = None #score du joueur
-        self.score_id = None
-        self.texte_score = tk.StringVar() #var tk string du score du joueur maj avec fonction
-        
-        #self.vies = None vieux
-        #self.vies_id =[] vieux
-        
+        self.nb_scores = 5
+        self.nom_du_joueur = 'Michel'
 
-        self.niveau = 1
+        self.bouton_droite = 'right'
+        self.bouton_gauche = 'left'
+        self.bouton_tirer = 'up'
+
+        self.image_fond = None
+
+        self.score = 0 #compteur du score du joueur
+
+        self.en_cours = True
+        self.defaite_id = None
+
+        self.niveau = 0
         
-        self.unite = 8 #unite de pixel arbitraire comme pas de deplacement du vaisseau
-        
-        self.unite_image = 32
+        self.unite = 8 #unite de longueur de deplacement
+        self.unite_image = 32 #taille des images 32x32
+
+        self.vaisseau = None
         self.liste_aliens = []
         self.alien2 = []
+        self.liste_murs = []
         self.nombre_aliens = 0
         self.vit_aliens = None # temps en ms entre chaque mouvement
         self.vit_alien2 = 90
         self.dirx = 10 # pas de deplacement, positif donc vers la droite (initialement)
         self.diry = 16 # pas de deplacement vers le bas
-        self.avance = 0 #avancee des aliens
         
         self.largeur_tir = 4
         self.hauteur_tir = 10
         self.vit_tir =30 # temps en ms entre chaque mouvement
         self.diry_tir = 10 # les tir se deplacent par 10px
-        self.queue_tir_joueur = [] #CONSIGNES j utilise bien une file dans le programme
+        self.queue_tir_joueur = [] #FILE
         self.queue_tir_aliens = []
         self.periode_tirs = 1000 # en ms
         
-        
-        self.vaisseau = None
         self.tir_autorise = True
         self.actions_joueur = None
         self.tick = 1/50 # 50 ticks par seconde
-        
-        self.liste_murs = []
-        
+
         
         self.ini_widgets()
-
         self.initialisation_jeu()
         
 
@@ -105,54 +103,129 @@ class Jeu(tk.Tk):
         
         menu_options = tk.Menu(menu_barre, tearoff = 0)
         menu_barre.add_cascade(label ='Options', menu = menu_options)
-
-        # menu_joueurs = tk.Menu(menu_options, tearoff = 0)
         
-        # self.nombre_joueurs = tk.IntVar()
-        # self.nombre_joueurs.set(1)
-        # menu_joueurs.add_radiobutton(label='1 joueur', command = None, variable=self.nombre_joueurs, value=1)
-        # menu_joueurs.add_radiobutton(label='2 joueur', command = None, variable=self.nombre_joueurs, value=2)
-        # menu_options.add_cascade(label='Nombre de joueurs', menu=menu_joueurs)
-        
-        menu_options.add_command(label ='Controles', command = None)
+        menu_options.add_command(label ='Controles', command = self.selection_controles)
         #menu_options.add_command(label ='Plein ecran', command = None)
 
-        menu_barre.add_command(label ='A propos', command = None)
+        menu_barre.add_command(label ='A propos', command = self.apropos)
         
         htot = self.hauteur + self.hauteur_pan + 100
         geo = '+' + str(self.ecran_l//2 - self.largeur//2) + '+' + str((self.ecran_h - htot)//2)
         self.geometry(geo) #centrer la fenetre
 
-    
-    def afficher_scores(self):
+    def apropos(self):
         
-        self.defaite()
+        self.pile = [] #PILE
+        popup = tk.Toplevel()
+        popup.resizable(False, False)
+        popup.title('Selection des controles')
+        popup.transient(self) #reduction popup impossible 
+        popup.grab_set() #interaction avec fenetre de jeu impossible
+
+        tk.Label(popup, text='Code par Quentin et Leo').grid(row=0, column=0, columnspan = 3)
+
+        def empile():
+            if randint(1,10)<10:
+                e = tk.Label(popup, text='     ', background='red')
+                e.grid(row=len(self.pile)+2, column=1)
+                self.pile.append(e)
+            else:
+                e = tk.Label(popup, text='     ', background='green')
+                e.grid(row=len(self.pile)+2, column=1)
+                self.pile.append(e)
+
+        tk.Button(popup,text='Empiler', command = empile).grid(row=1, column=0, padx=10, pady = 10)
+        def depile():
+            if len(self.pile)>0:
+                self.pile.pop(-1).destroy()
+
+        tk.Button(popup,text='Retirer', command = depile).grid(row=1, column=1, padx=10, pady = 10)
+        tk.Button(popup,text='Fermer',command = popup.destroy).grid(row=1, column=2, padx=10, pady = 10)
+        l = 500
+        h = 500
+        geo = '+' + str((self.ecran_l-l)//2) + '+' + str((self.ecran_h-h)//2) #centrer la fenetre popup
+        popup.geometry(geo)
+        self.wait_window(popup)
+
+    def selection_controles(self):
+
+        popup = tk.Toplevel()
+        popup.resizable(False, False)
+        popup.title('Selection des controles')
+        popup.transient(self) #reduction popup impossible 
+        popup.grab_set() #interaction avec fenetre de jeu impossible
+        def f_1():
+            self.bouton_droite = 'right'
+            self.bouton_gauche = 'left'
+            self.bouton_tirer = 'up'
+            popup.destroy()
+        tk.Button(popup,text='< ^ >', command = f_1).pack(fill='x')
+        def f_2():
+            self.bouton_droite = 'd'
+            self.bouton_gauche = 'q'
+            self.bouton_tirer = ' '
+            popup.destroy()
+        tk.Button(popup,text='Q D Espace', command = f_2).pack(fill='x')
+        l = 500
+        h = 500
+        geo = '+' + str((self.ecran_l-l)//2) + '+' + str((self.ecran_h-h)//2) #centrer la fenetre popup
+        popup.geometry(geo)
+        self.wait_window(popup)
+
+    def enregistrer_score(self):
         
-        nb_scores = 5
-        
-# fichier = open('ope.csv', 'w', newline='')
-# champs = ["date","noeud","action","index","mineur","identifiant","prec"]
-# writer = csv.DictWriter(fichier, fieldnames=champs)
-# writer.writeheader()
-        
-        fichier = open("scores.csv","r") #on recup les anciennes stats
-        scores = csv.reader(fichier) #scores est un tableau de strings
+        popup = tk.Toplevel()
+        popup.resizable(False, False)
+        popup.title('Nom du joueur')
+        popup.transient(self) #reduction popup impossible 
+        popup.grab_set() #interaction avec fenetre de jeu impossible
+        entree = tk.Entry(popup, width=15)
+        entree.insert(0,self.nom_du_joueur)
+        entree.pack()
+        def fonction():
+            self.nom_du_joueur = entree.get()
+            popup.destroy()
+        tk.Button(popup,text='Valider', command = fonction).pack()
+        l = 500
+        h = 500
+        geo = '+' + str((self.ecran_l-l)//2) + '+' + str((self.ecran_h-h)//2) #centrer la fenetre popup
+        popup.geometry(geo)
+        self.wait_window(popup)
+
+
+
+        fichier = open("scores.csv","r", newline='') #on recup les anciennes stats
+        lecteur = csv.DictReader(fichier)
+        scores = [raw for raw in lecteur]
         fichier.close()
-        
-        scores = scores[scores[:,2].argsort()]
+
+        #ajouter un score avant le tri
+        score = {"score": self.score, "nom": self.nom_du_joueur, "date": date.today()}
+        scores.append(score)
+
+        scores = sorted(scores, key=lambda e: int(e['score']), reverse=True)
+
+        #suppr un score apres le tri
+        if len(scores)>self.nb_scores:
+            scores.pop()
         
         fichier = open('scores.csv', 'w', newline='') #et on va ecraser l'ancien fichier par un maj
-        champs = ["rang","score","nom","date"]
-        machine = csv.DictWriter(fichier, fieldnames=champs)
-        machine.writeheader()
-        
-        
-        
+        champs = ["score","nom","date"]
+        transcripteur = csv.DictWriter(fichier, fieldnames=champs)
+        transcripteur.writeheader()
         for score in scores:
-            machine.writerow({"rang":score[0], "score":score[1], "nom":score[2], "date":score[3]})
-            
-        
-        
+            transcripteur.writerow({"score":score['score'], "nom":score['nom'], "date":score['date']})
+        fichier.close()
+
+        self.afficher_scores()
+    
+    def afficher_scores(self):
+
+        fichier = open("scores.csv","r", newline='') #on recup les anciennes stats
+        lecteur = csv.DictReader(fichier)
+        scores = [raw for raw in lecteur]
+        fichier.close()
+
         popup = tk.Toplevel()
         popup.resizable(False, False)
         popup.title('Meilleurs scores')
@@ -164,12 +237,21 @@ class Jeu(tk.Tk):
         frame.grid(row=0, column=0, columnspan=3)
         
         tk.Button(popup,text='Fermer',command = popup.destroy).grid(row=1, column=0, padx=10, pady = 10)
-        tk.Button(popup,text='Effacer',command = None).grid(row=1, column=1, padx=10, pady = 10)
-        tk.Button(popup,text='Valider',command = None).grid(row=1, column=2, padx=10, pady = 10)
+
+        def fonction():
+            self.effacer_scores()
+            popup.destroy()
+        tk.Button(popup,text='Effacer',command = fonction).grid(row=1, column=1, padx=10, pady = 10)
         
         tk.Label(frame, text='Rang').grid(row=0, column=0)
-        for k in range(nb_scores): 
+        tk.Label(frame, text='Score').grid(row=0, column=1)
+        tk.Label(frame, text='Nom').grid(row=0, column=2)
+        tk.Label(frame, text='Date').grid(row=0, column=3)
+        for k in range(len(scores)): 
             tk.Label(frame, text=str(k+1)).grid(row=k+1, column=0)
+            tk.Label(frame, text=scores[k]['score']).grid(row=k+1, column=1)
+            tk.Label(frame, text=scores[k]['nom']).grid(row=k+1, column=2)
+            tk.Label(frame, text=scores[k]['date']).grid(row=k+1, column=3)
         
         
         l = 500
@@ -177,17 +259,21 @@ class Jeu(tk.Tk):
         geo = '+' + str((self.ecran_l-l)//2) + '+' + str((self.ecran_h-h)//2) #centrer la fenetre popup
         popup.geometry(geo)
         self.wait_window(popup)
+
+    def effacer_scores(self):
+        fichier = open('scores.csv', 'w', newline='') #et on va ecraser l'ancien fichier par un maj
+        champs = ["score","nom","date"]
+        transcripteur = csv.DictWriter(fichier, fieldnames=champs)
+        transcripteur.writeheader()
         fichier.close()
-    
-    def enregistrer_score(self):
-        return
+        
     
     def incrementation_score(self, points):
         self.score += points
         self.panneau.actualisation_affichage_score()
     
     def chargement_alien2(self,temps):
-        if time() > temps + 5:
+        if time() > temps:
             photoimage = self.images['alien2']
             y = 0
             x = self.largeur
@@ -205,7 +291,7 @@ class Jeu(tk.Tk):
             self.can.coords(alien.id, alien.x, alien.y)
             self.after(self.vit_alien2, self.deplacement_alien2)
         else:
-            self.chargement_alien2(time())
+            self.chargement_alien2(time()+randint(20,60))
         
 
     def deplacement_aliens(self):
@@ -225,10 +311,10 @@ class Jeu(tk.Tk):
                 #del alien # que fait cette instruction ? l objectif etant de supprimer le lien vers l instance
             k -= 1
         
-        coef = 1/10 #coed d adoucissement de l exp
-        diff = exp(-coef*(1-self.niveau)) #difficultee du niveau
-        
-        self.vit_aliens = int( ( 975/54 * len(self.liste_aliens) + 25-975/54  ) * diff) #vitesse fonction lineaire du nombre d aliens pour un niveau donne
+        a = (exp(0.9)-exp(0.01))/54
+        b = exp(0.01)-a
+        x = self.nombre_aliens
+        self.vit_aliens = int(   1000*(   log( a*x+b ) + 0.1*exp(1-self.niveau)))
 
         if x_max >= self.largeur or x_min <= 0:
             self.dirx = -self.dirx #changement de sens de deplacement
@@ -236,7 +322,7 @@ class Jeu(tk.Tk):
                 alien.y = alien.y + self.diry #deplacement vers le bas
                 self.can.coords(alien.id, alien.x, alien.y)
 
-        if y_max >= self.hauteur - self.unite_image:
+        if y_max + self.unite_image*3 >= self.hauteur - self.unite_image:
             self.defaite()
         
         for alien in self.liste_aliens:
@@ -247,12 +333,11 @@ class Jeu(tk.Tk):
         self.after(self.vit_aliens, self.deplacement_aliens)
 
     def creation_aliens(self): # groupe d alien classique de 5 par 11, renvoie une liste d'objets Alien
-
         self.nombre_aliens = 5*11
         for i in range(5):
             for j in range(11):
                 x = j * 40 + self.largeur//4
-                y = i * 35 + self.unite_image
+                y = i * 35 + self.unite_image + int( 150*( 1-4/(3+self.niveau) ) )
                 self.liste_aliens.append( Alien(self, x, y, self.unite_image, self.images['alien'] ))
     
     
@@ -311,7 +396,7 @@ class Jeu(tk.Tk):
         
     def tir_aliens(self):
         n = len(self.liste_aliens)
-        if n:
+        if n and self.en_cours:
             alien = self.liste_aliens[randint(0,n-1)]
             l = self.largeur_tir*2
             h = self.hauteur_tir
@@ -330,44 +415,67 @@ class Jeu(tk.Tk):
         
     def defaite(self):
         self.tir_autorise = False
+        self.en_cours = False
 
-        self.can.create_image(self.largeur//2, self.hauteur//2, anchor=tk.CENTER, image=self.images['defaite'])
+        self.defaite_id = self.can.create_image(self.largeur//2, self.hauteur//2, anchor=tk.CENTER, image=self.images['defaite'])
+        self.enregistrer_score()
 
         
     def chargement_niveau(self):
+        self.niveau += 1
+        self.panneau.actualisation_affichage_niveau()
+
         nom = 'fond' + str( (self.niveau-1)%3+1 ) #trois images de fond seulement pour le moment
-        self.can.create_image(0, 0, anchor=tk.NW, image=self.images[nom]) #image de fond du niveau
+        self.can.itemconfig(self.image_fond, image=self.images[nom]) #image de fond du niveau
 
         self.creation_murs() #supprime les anciens
 
         self.creation_aliens() #ne supprime pas les anciens
 
-        self.chargement_alien2(time())
+
 
         
         
     def initialisation_jeu(self):
         self.panneau = Panneau(self)
         
+        self.image_fond = self.can.create_image(0, 0, anchor=tk.NW, image=self.images['fond1']) #image de fond du niveau
         self.nouvelle_partie()
 
         self.deplacement_aliens()
         self.tir_aliens()
 
+        self.chargement_alien2(time()+randint(20,60))
+
         self.actions_joueur = ActionsJoueur(self) #thread avec boucle alternative
 
 
+
+
     def nouvelle_partie(self):
+        if self.defaite_id:
+            self.can.delete(self.defaite_id)
+            self.defaite_id = None
+        self.en_cours = True
         self.score = 0
+        self.niveau = 0
+        self.incrementation_score(0)
+        self.dirx = abs(self.dirx) #on remet le deplacement dans le bon sens
+        self.tir_autorise = True
+        self.panneau.vie_ini()
         for alien in self.liste_aliens:
-            alien.destruction()
+            alien.vivant = False
+            self.can.delete(alien.id)
+        self.liste_aliens = []
+        
         #for mur in self.liste_murs: deja fait ?
         #    mur.nettoyage()
 
 
         self.chargement_niveau()
         
-        
+        if self.vaisseau:
+            self.can.delete(self.vaisseau.id)
         self.vaisseau = Vaisseau(self, self.largeur//2, self.hauteur-self.unite_image, self.unite_image)
 
 
@@ -375,11 +483,17 @@ class Jeu(tk.Tk):
 class Panneau():
     def __init__(self,jeu):
         self.jeu = jeu
-        self.vies = 3
-        self.vies_id = [self.jeu.pan.create_image(k*40+8, self.jeu.hauteur_pan/2-32/2, anchor=tk.NW, image=self.jeu.images['coeur']) for k in range(3)] #tableau avec id des images coeur
+        self.vies_id = []
         self.score_id = self.jeu.pan.create_text(self.jeu.largeur-100, self.jeu.hauteur_pan/2, fill='white', font=('system',20), text='Score : 0')
         self.niveau_id = self.jeu.pan.create_text(self.jeu.largeur//2, self.jeu.hauteur_pan/2, fill='white', font=('system',20), text='Niveau 1')
-    
+        self.vie_ini()
+
+    def vie_ini(self):
+        self.vies = 3
+        for vie in self.vies_id:
+            self.jeu.pan.delete(vie)
+        self.vies_id = [self.jeu.pan.create_image(k*40+8, self.jeu.hauteur_pan/2-32/2, anchor=tk.NW, image=self.jeu.images['coeur']) for k in range(3)] #tableau avec id des images coeur
+
     def malade(self):
         self.vies -= 1
         self.jeu.pan.delete(self.vies_id[self.vies])
@@ -389,8 +503,8 @@ class Panneau():
         return True #vivant
     
     def actualisation_affichage_score(self):
-        score_texte = 'Score : ' + str(self.jeu.score) + ' '
-        self.jeu.pan.itemconfigure(self.score_id, text=score_texte)
+        texte = 'Score : ' + str(self.jeu.score) + ' '
+        self.jeu.pan.itemconfigure(self.score_id, text=texte)
     
     def actualisation_affichage_niveau(self):
         texte = 'Niveau : ' + str(self.jeu.niveau) + ' '
@@ -460,8 +574,8 @@ class Alien():
             self.jeu.can.delete(self.id)
             self.jeu.incrementation_score(10)
             if self.jeu.nombre_aliens == 0:
-                self.jeu.chargement_niveau()
                 self.jeu.liste_aliens = []
+                self.jeu.chargement_niveau()
             self.jeu.after(110, self.jeu.can.delete, id_explosion)
         
 class Mur():
@@ -562,13 +676,13 @@ class ActionsJoueur():
             sleep(self.tick)
             # print(delta/self.tick)
             
-            if kb.is_pressed('right'):
+            if kb.is_pressed(self.jeu.bouton_droite):
                 self.jeu.droite()
             
-            if kb.is_pressed('left'):
+            if kb.is_pressed(self.jeu.bouton_gauche):
                 self.jeu.gauche()
             
-            if kb.is_pressed(' '):
+            if kb.is_pressed(self.jeu.bouton_tirer):
                 self.jeu.tir_joueur()
             
             if kb.is_pressed('t'):
