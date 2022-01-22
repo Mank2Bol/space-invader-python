@@ -322,7 +322,7 @@ class Jeu(tk.Tk):
                 alien.y = alien.y + self.diry #deplacement vers le bas
                 self.can.coords(alien.id, alien.x, alien.y)
 
-        if y_max + self.unite_image*3 >= self.hauteur - self.unite_image:
+        if y_max + self.unite_image*3 >= self.hauteur - self.unite_image and self.en_cours:
             self.defaite()
         
         for alien in self.liste_aliens:
@@ -332,7 +332,7 @@ class Jeu(tk.Tk):
     
         self.after(self.vit_aliens, self.deplacement_aliens)
 
-    def creation_aliens(self): # groupe d alien classique de 5 par 11, renvoie une liste d'objets Alien
+    def creation_aliens(self): # groupe d alien classique de 5 par 11
         self.nombre_aliens = 5*11
         for i in range(5):
             for j in range(11):
@@ -348,7 +348,7 @@ class Jeu(tk.Tk):
         for i in range(4):
             x = self.largeur/8*(2*i+1)
             y = self.hauteur - self.unite_image - 8 #hauteur - taille mur - 8px
-            self.liste_murs.append(Mur(self, x-2*t, y-3*t, t, t))
+            self.liste_murs.append(Mur(self, x-2*t, y-3*t, t, t)) #desole flemme de faire une boucle
             self.liste_murs.append(Mur(self, x-1*t, y-3*t, t, t))
             self.liste_murs.append(Mur(self, x-0*t, y-3*t, t, t))
             self.liste_murs.append(Mur(self, x+1*t, y-3*t, t, t))
